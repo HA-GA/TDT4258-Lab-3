@@ -5,6 +5,7 @@
 #include <sys/select.h>
 #include <linux/input.h>
 #include <stdbool.h>
+#include <dirent.h>
 #include <string.h>
 #include <time.h>
 #include <poll.h>
@@ -81,6 +82,26 @@ int random_Colour() {
     int random = rand() % numberOfColours;
 
     return colours[random];
+}
+
+
+int getCount(const char* dirPath, const char* prefix) {
+    DIR *dir = opendir(dirPath);
+    if (dir == NULL) {
+        return -1;  // Error opening directory
+    }
+
+    int count = 0;
+    struct dirent *entry;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strncmp(entry->d_name, prefix, strlen(prefix)) == 0) {
+            count++;
+        }
+    }
+
+    closedir(dir);
+    return count;
 }
 
 bool getJoystick() {
