@@ -110,7 +110,7 @@ int count_Files(const char* dirPath, const char* prefix) {  //count the number o
 
 bool fo_Framebuffer()  //find and open framebuffer
 {
-    int framebufferDescriptor;  // Renamed from fb
+    int framebufferDescriptor;
     int numberOfFrameBuffers = count_Files("/dev", "fb");
     for (size_t bufferIndex = 0; bufferIndex < numberOfFrameBuffers; bufferIndex++)
     {
@@ -119,7 +119,7 @@ bool fo_Framebuffer()  //find and open framebuffer
         // Constructing the path to the framebuffer
         snprintf(bufferPath, sizeof(bufferPath), "%s%zu", fb_filepath, bufferIndex);
 
-        // Opening the framebuffer
+        // Open the framebuffer
         framebufferDescriptor = open(bufferPath, O_RDWR);
         
         if (framebufferDescriptor == -1)  // Check for -1 as a sign of an error
@@ -127,22 +127,18 @@ bool fo_Framebuffer()  //find and open framebuffer
             continue;  // Skip to the next framebuffer
         }
 
-        // Filling in the info of the framebuffer's fixed screen info
-        if (ioctl(framebufferDescriptor, FBIOGET_FSCREENINFO, &fixed_ScreenInfo) < 0)  // Check if ioctl succeeded
-        {
-            close(framebufferDescriptor);  // Close the opened device before moving on
-            continue;  // Move on to the next framebuffer
+        // Get the fixed screen information for the framebuffer
+        if (ioctl(framebufferDescriptor, FBIOGET_FSCREENINFO, &fixed_ScreenInfo) < 0) {
+            close(framebufferDescriptor);
+            continue; 
         }
 
-        // Check if the framebuffer ID matches the desired one
-        if (strcmp(fixed_ScreenInfo.id, "RPi-Sense FB") == 0)
-        {
-            fb = framebufferDescriptor;  // Storing the framebuffer descriptor
-            return true;  // Successfully found the framebuffer
-        }
-        else
-        {
-            close(framebufferDescriptor);  // Close the opened framebuffer since it's not the desired one
+        //
+        if (strcmp(fixed_ScreenInfo.id, "RPi-Sense FB") == 0){
+            fb = framebufferDescriptor; 
+            return true;  
+        } else {
+            close(framebufferDescriptor);
         }
     }
 
@@ -157,42 +153,34 @@ bool fo_Joystick() {
         char devicePath[256] = {};
         char deviceName[256] = {};  
 
-        // Constructing the path to the device
-        snprintf(devicePath, sizeof(devicePath), "%s%zu", js_filepath, deviceIndex);  // Using snprintf for safety
+        snprintf(devicePath, sizeof(devicePath), "%s%zu", js_filepath, deviceIndex); 
 
-        // Opening the device with O_NONBLOCK
         joystickDescriptor = open(devicePath, O_RDWR | O_NONBLOCK);
         
-        if (joystickDescriptor == -1)  // Check for -1 as a sign of an error
-        {
-            continue;  // Skip to the next device
+        if (joystickDescriptor == -1) {
+            continue; 
         }
 
-        // Getting the name of the device
-        if (ioctl(joystickDescriptor, EVIOCGNAME(sizeof(deviceName)), deviceName) < 0)  // Check if ioctl succeeded
-        {
-            close(joystickDescriptor);  // Close the opened device before moving on
-            continue;  // Move on to the next device
+        if (ioctl(joystickDescriptor, EVIOCGNAME(sizeof(deviceName)), deviceName) < 0)  {
+            close(joystickDescriptor); 
+            continue; 
         }
-
-        // Check if the device name matches the Raspberry Pi joystick
-        if (strcmp(deviceName, "Raspberry Pi Sense HAT Joystick") == 0)
-        {
-            js = joystickDescriptor;  // Storing the joystick file descriptor
-            return true;  // Successfully found the joystick
-        }
-        else
-        {
-            close(joystickDescriptor);  // Close the opened device since it's not the desired joystick
+      
+        if (strcmp(deviceName, "Raspberry Pi Sense HAT Joystick") == 0){
+            js = joystickDescriptor;  
+            return true; 
+        } else {
+            close(joystickDescriptor); 
         }
     }
 
-    return false;  // If the loop completes, the joystick was not found
+    return false; 
 }
 
-bool initSenseHat() {
+bool initializeSenseHat() {
+    // Initialize framebuffer
     if (!fo_Framebuffer()) {
-        printf("Error: Could not find framebuffer\n");
+        printf("Error: Couldn't find framebuffer\n");
         return false;
     }
 
@@ -205,7 +193,7 @@ bool initSenseHat() {
   
     // Initialize joystick
     if (!fo_Joystick()) {
-        printf("Could not find joystick\n");
+        printf("Error: Couldn't find joystick\n");
         return false;
     }
 
@@ -216,22 +204,22 @@ bool initSenseHat() {
 // This function is called when the application exits
 // Here you can free up everything that you might have opened/allocated
 void freeSenseHat() {
-    // Unmap the framebuffer from virtual memory
+    // Unmap the framebuffer
     if (fb_ptr != MAP_FAILED) {
         munmap(fb_ptr, matrix_size);
-        fb_ptr = NULL;  // Reset the pointer after unmapping
+        fb_ptr = NULL;  // Reset the pointer
     }
 
-    // Close the framebuffer if opened
-    if (fb != -1) {  // Assuming fb is initialized to -1 by default
+      // Reset the framebuffer descriptor
+    if (fb != -1) {
         close(fb);
-        fb = -1;  // Reset the framebuffer descriptor
+        fb = -1;
     }
 
-    // Close the joystick if opened
-    if (js != -1) {  // Assuming joystick is initialized to -1 by default
+    // Reset the joystick descriptor
+    if (js != -1) { 
         close(joystick);
-        js = -1;  // Reset the joystick descriptor
+        js = -1;  
     }
 }
 
@@ -244,7 +232,7 @@ int readSenseHatJoystick() {
     read(joystick, &joystick_event, sizeof(joystick_event));
       if ((joystick_event.value == 1 || joystick_event.value == 2) && joystick_event.type == EV_KEY) {
         return (int)joystick_event.code;
-    }
+        }
     }
     return 0; 
   }
@@ -258,8 +246,7 @@ void renderSenseHatMatrix(bool const playfieldChanged) {
         for (int y = 0; y < 8; y++) {
             if (game.playfield[y][x].occupied){
                 fb_ptr[x + (8 * y)] = game.playfield[y][x].colour;
-            }
-            else {
+            } else {
                 fb_ptr[x + (8 * y)] = 0;
             }
         }
@@ -547,7 +534,7 @@ int main(int argc, char **argv) {
   // Start with gameOver
   gameOver();
 
-  if (!initSenseHat()) {
+  if (!initializeSenseHat()) {
     fprintf(stderr, "ERROR: could not initilize sense hat\n");
     return 1;
   };
