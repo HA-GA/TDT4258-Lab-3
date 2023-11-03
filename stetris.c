@@ -22,14 +22,14 @@
 #define ROW_CLEAR  (1 << 1)
 #define TILE_ADDED (1 << 2)
 
-#define FILEPATH_TO_FB "/dev/fb"
-#define FILEPATH_TO_JOYSTICK "/dev/input/event"
-#define SIZE_OF_MATRIX (64 * sizeof(uint16_t)) //8*8 tiles
+#define fb_filepath "/dev/fb"
+#define js_filepath "/dev/input/event"
+#define matrix_size (64 * sizeof(uint16_t)) //8*8 tiles
 
 int fb = -1; // Default to -1 to indicate uninitialized
 int js = -1;
 uint16_t *fb_ptr = NULL;
-struct fb_fix_screeninfo fix_info;
+struct fb_fix_screeninfo fixed_ScreenInfo;
 struct input_event joystick_event;
 
 // If you extend this structure, either avoid pointers or adjust
@@ -117,7 +117,7 @@ bool fo_Framebuffer()  //find and open framebuffer
         char bufferPath[256] = {};
 
         // Constructing the path to the framebuffer
-        snprintf(bufferPath, sizeof(bufferPath), "%s%zu", FILEPATH_TO_FB, bufferIndex);
+        snprintf(bufferPath, sizeof(bufferPath), "%s%zu", fb_filepath, bufferIndex);
 
         // Opening the framebuffer
         framebufferDescriptor = open(bufferPath, O_RDWR);
@@ -128,14 +128,14 @@ bool fo_Framebuffer()  //find and open framebuffer
         }
 
         // Filling in the info of the framebuffer's fixed screen info
-        if (ioctl(framebufferDescriptor, FBIOGET_FSCREENINFO, &fix_info) < 0)  // Check if ioctl succeeded
+        if (ioctl(framebufferDescriptor, FBIOGET_FSCREENINFO, &fixed_ScreenInfo) < 0)  // Check if ioctl succeeded
         {
             close(framebufferDescriptor);  // Close the opened device before moving on
             continue;  // Move on to the next framebuffer
         }
 
         // Check if the framebuffer ID matches the desired one
-        if (strcmp(fix_info.id, "RPi-Sense FB") == 0)
+        if (strcmp(fixed_ScreenInfo.id, "RPi-Sense FB") == 0)
         {
             fb = framebufferDescriptor;  // Storing the framebuffer descriptor
             return true;  // Successfully found the framebuffer
@@ -158,7 +158,7 @@ bool fo_Joystick() {
         char deviceName[256] = {};  
 
         // Constructing the path to the device
-        snprintf(devicePath, sizeof(devicePath), "%s%zu", FILEPATH_TO_JOYSTICK, deviceIndex);  // Using snprintf for safety
+        snprintf(devicePath, sizeof(devicePath), "%s%zu", js_filepath, deviceIndex);  // Using snprintf for safety
 
         // Opening the device with O_NONBLOCK
         joystickDescriptor = open(devicePath, O_RDWR | O_NONBLOCK);
@@ -196,7 +196,7 @@ bool initSenseHat() {
         return false;
     }
 
-    fb_ptr = mmap(NULL, SIZE_OF_MATRIX, PROT_READ | PROT_WRITE, MAP_SHARED, fb, 0);
+    fb_ptr = mmap(NULL, matrix_size, PROT_READ | PROT_WRITE, MAP_SHARED, fb, 0);
     if (fb_ptr == MAP_FAILED) {
         close(fb);
         printf("Error: Failed to map framebuffer to memory\n");
@@ -218,7 +218,7 @@ bool initSenseHat() {
 void freeSenseHat() {
     // Unmap the framebuffer from virtual memory
     if (fb_ptr != MAP_FAILED) {
-        munmap(fb_ptr, SIZE_OF_MATRIX);
+        munmap(fb_ptr, matrix_size);
         fb_ptr = NULL;  // Reset the pointer after unmapping
     }
 
