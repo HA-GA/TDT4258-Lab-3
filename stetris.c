@@ -218,18 +218,18 @@ void freeSenseHat() {
 
     // Reset the joystick descriptor
     if (js != -1) { 
-        close(joystick);
+        close(js);
         js = -1;  
     }
 }
 
 int readSenseHatJoystick() {
     struct pollfd js_Poll;
-    js_Poll.fd = joystick;
+    js_Poll.fd = js;
     js_Poll.events = POLLIN;
 
     if (poll(&js_Poll, 1, 0) > 0) {
-    read(joystick, &joystick_event, sizeof(joystick_event));
+    read(js, &joystick_event, sizeof(joystick_event));
       if ((joystick_event.value == 1 || joystick_event.value == 2) && joystick_event.type == EV_KEY) {
         return (int)joystick_event.code;
         }
