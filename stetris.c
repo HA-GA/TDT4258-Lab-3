@@ -5,15 +5,15 @@
 #include <sys/select.h>
 #include <linux/input.h>
 #include <stdbool.h>
-#include <dirent.h>
 #include <string.h>
 #include <time.h>
 #include <poll.h>
-
-
-int fb = 0;
-int js = 0;
-u_int16_t *fb_ptr = 0;
+#include <stdint.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <linux/fb.h>
 
 
 // The game state can be used to detect what happens on the playfield
@@ -22,12 +22,22 @@ u_int16_t *fb_ptr = 0;
 #define ROW_CLEAR  (1 << 1)
 #define TILE_ADDED (1 << 2)
 
+#define FILEPATH_TO_FB "/dev/fb"
+#define FILEPATH_TO_JOYSTICK "/dev/input/event"
+#define SIZE_OF_MATRIX (64 * sizeof(uint16_t)) // 8x8 tiles, 16 bits each
+
+int frame_buffer = -1; // Default to -1 to indicate uninitialized
+int joystick = -1; // Default to -1 to indicate uninitialized
+uint16_t *fb_ptr = NULL; // Frame buffer pointer
+struct fb_fix_screeninfo fix_info;
+
 // If you extend this structure, either avoid pointers or adjust
 // the game logic allocate/deallocate and reset the memory
 typedef struct {
   bool occupied;
-  int colour;
+    int colour;
 } tile;
+
 
 typedef struct {
   unsigned int x;
@@ -57,7 +67,6 @@ typedef struct {
 } gameConfig;
 
 
-
 gameConfig game = {
                    .grid = {8, 8},
                    .uSecTickTime = 10000,
@@ -84,7 +93,6 @@ int random_Colour() {
     return colours[random];
 }
 
-
 int getCount(const char* dirPath, const char* prefix) {
     DIR *dir = opendir(dirPath);
     if (dir == NULL) {
@@ -103,49 +111,6 @@ int getCount(const char* dirPath, const char* prefix) {
     closedir(dir);
     return count;
 }
-
-bool getJoystick() {
-    int joystickDescriptor;  
-    int numberOfInputDevices = getCount("/dev/input", "event");
-    for (size_t deviceIndex = 0; deviceIndex < numberOfInputDevices; deviceIndex++)
-    {
-        char devicePath[256] = {};
-        char deviceName[256] = {};  
-
-        // Constructing the path to the device
-        snprintf(devicePath, sizeof(devicePath), "%s%zu", FILEPATH_TO_JOYSTICK, deviceIndex);  // Using snprintf for safety
-
-        // Opening the device with O_NONBLOCK
-        joystickDescriptor = open(devicePath, O_RDWR | O_NONBLOCK);
-        
-        if (joystickDescriptor == -1)  // Check for -1 as a sign of an error
-        {
-            continue;  // Skip to the next device
-        }
-
-        // Getting the name of the device
-        if (ioctl(joystickDescriptor, EVIOCGNAME(sizeof(deviceName)), deviceName) < 0)  // Check if ioctl succeeded
-        {
-            close(joystickDescriptor);  // Close the opened device before moving on
-            continue;  // Move on to the next device
-        }
-
-        // Check if the device name matches the Raspberry Pi joystick
-        if (strcmp(deviceName, "Raspberry Pi Sense HAT Joystick") == 0)
-        {
-            joystick = joystickDescriptor;  // Storing the joystick file descriptor
-            return true;  // Successfully found the joystick
-        }
-        else
-        {
-            close(joystickDescriptor);  // Close the opened device since it's not the desired joystick
-        }
-    }
-
-    return false;  // If the loop completes, the joystick was not found
-}
-
-
 
 bool getFrameBuffer()
 {
@@ -189,11 +154,47 @@ bool getFrameBuffer()
     return false;  // If the loop completes, the framebuffer was not found
 }
 
+bool getJoystick() {
+    int joystickDescriptor;  
+    int numberOfInputDevices = getCount("/dev/input", "event");
+    for (size_t deviceIndex = 0; deviceIndex < numberOfInputDevices; deviceIndex++)
+    {
+        char devicePath[256] = {};
+        char deviceName[256] = {};  
 
+        // Constructing the path to the device
+        snprintf(devicePath, sizeof(devicePath), "%s%zu", FILEPATH_TO_JOYSTICK, deviceIndex);  // Using snprintf for safety
 
-// This function is called on the start of your application
-// Here you can initialize what ever you need for your task
-// return false if something fails, else true
+        // Opening the device with O_NONBLOCK
+        joystickDescriptor = open(devicePath, O_RDWR | O_NONBLOCK);
+        
+        if (joystickDescriptor == -1)  // Check for -1 as a sign of an error
+        {
+            continue;  // Skip to the next device
+        }
+
+        // Getting the name of the device
+        if (ioctl(joystickDescriptor, EVIOCGNAME(sizeof(deviceName)), deviceName) < 0)  // Check if ioctl succeeded
+        {
+            close(joystickDescriptor);  // Close the opened device before moving on
+            continue;  // Move on to the next device
+        }
+
+        // Check if the device name matches the Raspberry Pi joystick
+        if (strcmp(deviceName, "Raspberry Pi Sense HAT Joystick") == 0)
+        {
+            joystick = joystickDescriptor;  // Storing the joystick file descriptor
+            return true;  // Successfully found the joystick
+        }
+        else
+        {
+            close(joystickDescriptor);  // Close the opened device since it's not the desired joystick
+        }
+    }
+
+    return false;  // If the loop completes, the joystick was not found
+}
+
 bool initializeSenseHat() {
     if (!setFrameBuffer()) {
         printf("Error: Could not find framebuffer\n");
@@ -242,15 +243,6 @@ void freeSenseHat() {
     }
 }
 
-
-// This function should return the key that corresponds to the joystick press
-// KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, with the respective direction
-// and KEY_ENTER, when the the joystick is pressed
-// !!! when nothing was pressed you MUST return 0 !!!
-#include <fcntl.h>
-#include <unistd.h>
-#include <linux/input.h>
-
 int readSenseHatJoystick()
 {
     struct input_event input_event;
@@ -283,23 +275,6 @@ int readSenseHatJoystick()
     return 0;  // Default return value if no recognized joystick event
 }
 
-
-
-// This function should render the gamefield on the LED matrix. It is called
-// every game tick. The parameter playfieldChanged signals whether the game logic
-// has changed the playfield
-#include <string.h>
-
-// Assuming game field size is 8x8 for the Sense Hat
-#define FIELD_SIZE 8
-
-// Assuming a representation for the game field
-// 0 represents empty, and non-zero values represent different game elements/colors
-uint8_t gameField[FIELD_SIZE][FIELD_SIZE];
-
-// Assuming you have a function to get the color for each game element
-uint32_t getColorForElement(uint8_t element);
-
 void renderSenseHatMatrix(bool const playfieldChanged) {
     if (!playfieldChanged) {
         return; // If the playfield hasn't changed, no need to re-render
@@ -315,25 +290,6 @@ void renderSenseHatMatrix(bool const playfieldChanged) {
 
     // Assuming you have a function to set the colors on the Sense Hat
     setSenseHatColors(matrixColors);
-}
-
-uint32_t getColorForElement(uint8_t element) {
-    switch (element) {
-        case 0: // Empty
-            return 0x000000; // Black
-        case 1: // Some game element
-            return 0xFF0000; // Red
-        // ... add other game elements and their colors here
-        default:
-            return 0x000000; // Default to black for unrecognized elements
-    }
-}
-
-// This function would be an interface to the actual Sense Hat API to set the pixel colors
-void setSenseHatColors(uint32_t colors[]) {
-    // Here you would interact with the Sense Hat API to set the LED matrix colors
-    // For example, using the Sense Hat C library, you might do something like:
-    // senseSetPixels(colors);
 }
 
 
@@ -539,33 +495,6 @@ bool sTetris(int const key) {
   return playfieldChanged;
 }
 
-int readKeyboard() {
-  struct pollfd pollStdin = {
-       .fd = STDIN_FILENO,
-       .events = POLLIN
-  };
-  int lkey = 0;
-
-  if (poll(&pollStdin, 1, 0)) {
-    lkey = fgetc(stdin);
-    if (lkey != 27)
-      goto exit;
-    lkey = fgetc(stdin);
-    if (lkey != 91)
-      goto exit;
-    lkey = fgetc(stdin);
-  }
- exit:
-    switch (lkey) {
-      case 10: return KEY_ENTER;
-      case 65: return KEY_UP;
-      case 66: return KEY_DOWN;
-      case 67: return KEY_RIGHT;
-      case 68: return KEY_LEFT;
-    }
-  return 0;
-}
-
 void renderConsole(bool const playfieldChanged) {
   if (!playfieldChanged)
     return;
@@ -658,8 +587,6 @@ int main(int argc, char **argv) {
     gettimeofday(&sTv, NULL);
 
     int key = readSenseHatJoystick();
-    if (!key)
-      key = readKeyboard();
     if (key == KEY_ENTER)
       break;
 
