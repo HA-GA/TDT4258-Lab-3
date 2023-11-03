@@ -119,7 +119,6 @@ bool getFrameBuffer()
     for (size_t bufferIndex = 0; bufferIndex < numberOfFrameBuffers; bufferIndex++)
     {
         char bufferPath[256] = {};
-        char bufferId[256] = {};  // ID of the framebuffer we're trying to identify
 
         // Constructing the path to the framebuffer
         snprintf(bufferPath, sizeof(bufferPath), "%s%zu", FILEPATH_TO_FB, bufferIndex);
@@ -196,7 +195,7 @@ bool getJoystick() {
 }
 
 bool initializeSenseHat() {
-    if (!setFrameBuffer()) {
+    if (!getFrameBuffer()) {
         printf("Error: Could not find framebuffer\n");
         return false;
     }
@@ -212,7 +211,7 @@ bool initializeSenseHat() {
     memset(fb_ptr, 0, SIZE_OF_MATRIX);
 
     // Initialize joystick
-    if (!setJoystick()) {
+    if (!getJoystick()) {
         printf("Could not find joystick\n");
         return false;
     }
@@ -275,21 +274,26 @@ int readSenseHatJoystick()
     return 0;  // Default return value if no recognized joystick event
 }
 
+void setSenseHatColors(uint32_t matrixColors[]);
+uint32_t getColorForElement(bool element);
+extern bool gameField[8][8];
+
+
 void renderSenseHatMatrix(bool const playfieldChanged) {
     if (!playfieldChanged) {
-        return; // If the playfield hasn't changed, no need to re-render
+        return; 
     }
 
-    uint32_t matrixColors[FIELD_SIZE * FIELD_SIZE];
-
-    for (int y = 0; y < FIELD_SIZE; y++) {
-        for (int x = 0; x < FIELD_SIZE; x++) {
-            matrixColors[y * FIELD_SIZE + x] = getColorForElement(gameField[y][x]);
-        }
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            if (game.playfield[y][x].occupied){
+                    fb_ptr[x + (8 * y)] = game.playfield[y][x].colour;
+                }
+                else{
+                    fb_ptr[x + (8 * y)] = 0;
+                }
+          }
     }
-
-    // Assuming you have a function to set the colors on the Sense Hat
-    setSenseHatColors(matrixColors);
 }
 
 
