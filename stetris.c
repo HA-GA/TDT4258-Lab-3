@@ -15,7 +15,6 @@
 #include <sys/mman.h>
 #include <linux/fb.h>
 
-
 // The game state can be used to detect what happens on the playfield
 #define GAMEOVER   0
 #define ACTIVE     (1 << 0)
@@ -84,7 +83,6 @@ int colours[] = {
     0x07FF   // Light blue
 };
 
-
 uint16_t random_Colour() {
     return colours[rand() % 8];
 }
@@ -112,8 +110,7 @@ bool fo_Framebuffer()  //find and open framebuffer
 {
     int framebufferDescriptor;
     int numberOfFrameBuffers = count_Files("/dev", "fb");
-    for (size_t bufferIndex = 0; bufferIndex < numberOfFrameBuffers; bufferIndex++)
-    {
+    for (size_t bufferIndex = 0; bufferIndex < numberOfFrameBuffers; bufferIndex++) {    
         char bufferPath[256] = {};
 
         // Constructing the path to the framebuffer
@@ -122,8 +119,7 @@ bool fo_Framebuffer()  //find and open framebuffer
         // Open the framebuffer
         framebufferDescriptor = open(bufferPath, O_RDWR);
         
-        if (framebufferDescriptor == -1)  // Check for -1 as a sign of an error
-        {
+        if (framebufferDescriptor == -1) {     // Check for -1 as a sign of an error
             continue;  // Skip to the next framebuffer
         }
 
@@ -133,7 +129,6 @@ bool fo_Framebuffer()  //find and open framebuffer
             continue; 
         }
 
-        //
         if (strcmp(fixed_ScreenInfo.id, "RPi-Sense FB") == 0){
             fb = framebufferDescriptor; 
             return true;  
@@ -148,13 +143,12 @@ bool fo_Framebuffer()  //find and open framebuffer
 bool fo_Joystick() {
     int joystickDescriptor;  
     int numberOfInputDevices = count_Files("/dev/input", "event");
-    for (size_t deviceIndex = 0; deviceIndex < numberOfInputDevices; deviceIndex++)
-    {
+    for (size_t deviceIndex = 0; deviceIndex < numberOfInputDevices; deviceIndex++) {
+   
         char devicePath[256] = {};
         char deviceName[256] = {};  
 
         snprintf(devicePath, sizeof(devicePath), "%s%zu", js_filepath, deviceIndex); 
-
         joystickDescriptor = open(devicePath, O_RDWR | O_NONBLOCK);
         
         if (joystickDescriptor == -1) {
@@ -199,7 +193,6 @@ bool initializeSenseHat() {
 
     return true;
 }
-
 
 // This function is called when the application exits
 // Here you can free up everything that you might have opened/allocated
@@ -252,7 +245,6 @@ void renderSenseHatMatrix(bool const playfieldChanged) {
         }
     }
 }
-
 
 // The game logic uses only the following functions to interact with the playfield.
 // if you choose to change the playfield or the tile structure, you might need to
