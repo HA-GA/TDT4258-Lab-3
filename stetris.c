@@ -24,11 +24,11 @@
 
 #define FILEPATH_TO_FB "/dev/fb"
 #define FILEPATH_TO_JOYSTICK "/dev/input/event"
-#define SIZE_OF_MATRIX (64 * sizeof(uint16_t)) // 8x8 tiles, 16 bits each
+#define SIZE_OF_MATRIX (64 * sizeof(uint16_t)) //8*8 tiles
 
-int frame_buffer = -1; // Default to -1 to indicate uninitialized
-int joystick = -1; // Default to -1 to indicate uninitialized
-uint16_t *fb_ptr = NULL; // Frame buffer pointer
+int fb = -1; // Default to -1 to indicate uninitialized
+int js = -1;
+uint16_t *fb_ptr = NULL;
 struct fb_fix_screeninfo fix_info;
 struct input_event joystick_event;
 
@@ -36,9 +36,8 @@ struct input_event joystick_event;
 // the game logic allocate/deallocate and reset the memory
 typedef struct {
   bool occupied;
-    int colour;
+  int colour;
 } tile;
-
 
 typedef struct {
   unsigned int x;
@@ -67,7 +66,6 @@ typedef struct {
                               // lowers with increasing level, never reaches 0
 } gameConfig;
 
-
 gameConfig game = {
                    .grid = {8, 8},
                    .uSecTickTime = 10000,
@@ -76,21 +74,22 @@ gameConfig game = {
 };
 
 int colours[] = {
-        0xF800,  // Red
-        0x07E0,  // Green
-        0x001F,  // Blue
-        0xFFE0,  // Yellow
-        0x8010,  // Purple
-        0x07FF,  // Cyan
-        0xFDA0,  // Orange
-        0xF81F   // Pink
-    };
+    0xF800,  // Red
+    0xFC00,  // Orange
+    0xFFE0,  // Yellow
+    0x07E0,  // Green
+    0x001F,  // Blue
+    0x0410,  // Indigo
+    0x780F,  // Violet
+    0x07FF   // Light blue
+};
+
 
 uint16_t random_Colour() {
     return colours[rand() % 8];
 }
 
-int getCount(const char* dirPath, const char* prefix) {
+int count_Files(const char* dirPath, const char* prefix) {  //count the number of files in the directory 
     DIR *dir = opendir(dirPath);
     if (dir == NULL) {
         return -1;  // Error opening directory
@@ -109,10 +108,10 @@ int getCount(const char* dirPath, const char* prefix) {
     return count;
 }
 
-bool getFrameBuffer()
+bool fo_Framebuffer()  //find and open framebuffer
 {
     int framebufferDescriptor;  // Renamed from fb
-    int numberOfFrameBuffers = getCount("/dev", "fb");
+    int numberOfFrameBuffers = count_Files("/dev", "fb");
     for (size_t bufferIndex = 0; bufferIndex < numberOfFrameBuffers; bufferIndex++)
     {
         char bufferPath[256] = {};
@@ -138,7 +137,7 @@ bool getFrameBuffer()
         // Check if the framebuffer ID matches the desired one
         if (strcmp(fix_info.id, "RPi-Sense FB") == 0)
         {
-            frame_buffer = framebufferDescriptor;  // Storing the framebuffer descriptor
+            fb = framebufferDescriptor;  // Storing the framebuffer descriptor
             return true;  // Successfully found the framebuffer
         }
         else
@@ -150,9 +149,9 @@ bool getFrameBuffer()
     return false;  // If the loop completes, the framebuffer was not found
 }
 
-bool getJoystick() {
+bool fo_Joystick() {
     int joystickDescriptor;  
-    int numberOfInputDevices = getCount("/dev/input", "event");
+    int numberOfInputDevices = count_Files("/dev/input", "event");
     for (size_t deviceIndex = 0; deviceIndex < numberOfInputDevices; deviceIndex++)
     {
         char devicePath[256] = {};
@@ -179,7 +178,7 @@ bool getJoystick() {
         // Check if the device name matches the Raspberry Pi joystick
         if (strcmp(deviceName, "Raspberry Pi Sense HAT Joystick") == 0)
         {
-            joystick = joystickDescriptor;  // Storing the joystick file descriptor
+            js = joystickDescriptor;  // Storing the joystick file descriptor
             return true;  // Successfully found the joystick
         }
         else
@@ -191,24 +190,21 @@ bool getJoystick() {
     return false;  // If the loop completes, the joystick was not found
 }
 
-bool initializeSenseHat() {
-    if (!getFrameBuffer()) {
+bool initSenseHat() {
+    if (!fo_Framebuffer()) {
         printf("Error: Could not find framebuffer\n");
         return false;
     }
 
-    fb_ptr = mmap(NULL, SIZE_OF_MATRIX, PROT_READ | PROT_WRITE, MAP_SHARED, frame_buffer, 0);
+    fb_ptr = mmap(NULL, SIZE_OF_MATRIX, PROT_READ | PROT_WRITE, MAP_SHARED, fb, 0);
     if (fb_ptr == MAP_FAILED) {
-        close(frame_buffer);
+        close(fb);
         printf("Error: Failed to map framebuffer to memory\n");
         return false;
     }
-
-
- 
-
+  
     // Initialize joystick
-    if (!getJoystick()) {
+    if (!fo_Joystick()) {
         printf("Could not find joystick\n");
         return false;
     }
@@ -227,15 +223,15 @@ void freeSenseHat() {
     }
 
     // Close the framebuffer if opened
-    if (frame_buffer != -1) {  // Assuming frame_buffer is initialized to -1 by default
-        close(frame_buffer);
-        frame_buffer = -1;  // Reset the framebuffer descriptor
+    if (fb != -1) {  // Assuming fb is initialized to -1 by default
+        close(fb);
+        fb = -1;  // Reset the framebuffer descriptor
     }
 
     // Close the joystick if opened
-    if (joystick != -1) {  // Assuming joystick is initialized to -1 by default
+    if (js != -1) {  // Assuming joystick is initialized to -1 by default
         close(joystick);
-        joystick = -1;  // Reset the joystick descriptor
+        js = -1;  // Reset the joystick descriptor
     }
 }
 
@@ -551,7 +547,7 @@ int main(int argc, char **argv) {
   // Start with gameOver
   gameOver();
 
-  if (!initializeSenseHat()) {
+  if (!initSenseHat()) {
     fprintf(stderr, "ERROR: could not initilize sense hat\n");
     return 1;
   };
