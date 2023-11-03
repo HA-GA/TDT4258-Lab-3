@@ -87,7 +87,7 @@ int colours[] = {
     };
 
 uint16_t random_Colour() {
-    return colors[rand() % 8];
+    return colours[rand() % 8];
 }
 
 int getCount(const char* dirPath, const char* prefix) {
@@ -141,10 +141,10 @@ bool getFrameBuffer()
             frame_buffer = framebufferDescriptor;  // Storing the framebuffer descriptor
             return true;  // Successfully found the framebuffer
         }
-        
-        
-        close(framebufferDescriptor);  // Close the opened framebuffer since it's not the desired one
-        
+        else
+        {
+            close(framebufferDescriptor);  // Close the opened framebuffer since it's not the desired one
+        }
     }
 
     return false;  // If the loop completes, the framebuffer was not found
@@ -182,9 +182,10 @@ bool getJoystick() {
             joystick = joystickDescriptor;  // Storing the joystick file descriptor
             return true;  // Successfully found the joystick
         }
-        
+        else
+        {
             close(joystickDescriptor);  // Close the opened device since it's not the desired joystick
-      
+        }
     }
 
     return false;  // If the loop completes, the joystick was not found
@@ -202,6 +203,7 @@ bool initializeSenseHat() {
         printf("Error: Failed to map framebuffer to memory\n");
         return false;
     }
+
 
  
 
@@ -244,8 +246,8 @@ int readSenseHatJoystick() {
 
     if (poll(&js_Poll, 1, 0) > 0) {
     read(joystick, &joystick_event, sizeof(joystick_event));
-      if ((event.value == 1 || event.value == 2) && event.type == EV_KEY) {
-        return (int)event.code;
+      if ((joystick_event.value == 1 || joystick_event.value == 2) && joystick_event.type == EV_KEY) {
+        return (int)joystick_event.code;
     }
     }
     return 0; 
@@ -256,9 +258,9 @@ void renderSenseHatMatrix(bool const playfieldChanged) {
         return;
     }
 
-    for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 8; x++) {
-            if (game.playfield[x][y].occupied){
+    for (int x = 0; x < 8; x++) {
+        for (int y = 0; y < 8; y++) {
+            if (game.playfield[y][x].occupied){
                 fb_ptr[x + (8 * y)] = game.playfield[y][x].colour;
             }
             else {
