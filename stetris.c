@@ -30,6 +30,7 @@ int frame_buffer = -1; // Default to -1 to indicate uninitialized
 int joystick = -1; // Default to -1 to indicate uninitialized
 uint16_t *fb_ptr = NULL; // Frame buffer pointer
 struct fb_fix_screeninfo fix_info;
+struct input_event joystick_event;
 
 // If you extend this structure, either avoid pointers or adjust
 // the game logic allocate/deallocate and reset the memory
@@ -140,10 +141,10 @@ bool getFrameBuffer()
             frame_buffer = framebufferDescriptor;  // Storing the framebuffer descriptor
             return true;  // Successfully found the framebuffer
         }
-        else
-        {
-            close(framebufferDescriptor);  // Close the opened framebuffer since it's not the desired one
-        }
+        
+        
+        close(framebufferDescriptor);  // Close the opened framebuffer since it's not the desired one
+        
     }
 
     return false;  // If the loop completes, the framebuffer was not found
@@ -181,10 +182,9 @@ bool getJoystick() {
             joystick = joystickDescriptor;  // Storing the joystick file descriptor
             return true;  // Successfully found the joystick
         }
-        else
-        {
+        
             close(joystickDescriptor);  // Close the opened device since it's not the desired joystick
-        }
+      
     }
 
     return false;  // If the loop completes, the joystick was not found
@@ -203,8 +203,7 @@ bool initializeSenseHat() {
         return false;
     }
 
-    // Turn off the LED lights on the Sense HAT
-    memset(fb_ptr, 0, SIZE_OF_MATRIX);
+ 
 
     // Initialize joystick
     if (!getJoystick()) {
@@ -238,37 +237,19 @@ void freeSenseHat() {
     }
 }
 
-int readSenseHatJoystick()
-{
-    struct input_event input_event;
+int readSenseHatJoystick() {
+    struct pollfd js_Poll;
+    js_Poll.fd = joystick;
+    js_Poll.events = POLLIN;
 
-    int flags = fcntl(joystick, F_GETFL, 0);
-    fcntl(joystick, F_SETFL, flags | O_NONBLOCK);
-
-    ssize_t bytesRead = read(joystick, &input_event, sizeof(input_event));
-    if (bytesRead != sizeof(input_event)) {
-        return 0; // Return 0 or another code to indicate no valid event was read
+    if (poll(&js_Poll, 1, 0) > 0) {
+    read(joystick, &joystick_event, sizeof(joystick_event));
+      if ((event.value == 1 || event.value == 2) && event.type == EV_KEY) {
+        return (int)event.code;
     }
-
-    if (input_event.value == 1 || input_event.value == 2) {
-        switch (input_event.code) {
-            case 106:
-                return KEY_RIGHT;
-            case 105:
-                return KEY_LEFT;
-            case 103:  // Assuming 103 is the code for KEY_UP
-                return KEY_UP;
-            case 108:
-                return KEY_DOWN;
-            case 28:
-                return KEY_ENTER;
-            default:
-                return 0;  // Unrecognized code
-        }
     }
-
-    return 0;  // Default return value if no recognized joystick event
-}
+    return 0; 
+  }
 
 void renderSenseHatMatrix(bool const playfieldChanged) {
     if (!playfieldChanged) {
@@ -277,8 +258,8 @@ void renderSenseHatMatrix(bool const playfieldChanged) {
 
     for (int y = 0; y < 8; y++) {
         for (int x = 0; x < 8; x++) {
-            if (game.field[x][y].occupied){
-                fb_ptr[x + (8 * y)] = random_Colour();
+            if (game.playfield[x][y].occupied){
+                fb_ptr[x + (8 * y)] = game.playfield[y][x].colour;
             }
             else {
                 fb_ptr[x + (8 * y)] = 0;
@@ -294,6 +275,7 @@ void renderSenseHatMatrix(bool const playfieldChanged) {
 
 static inline void newTile(coord const target) {
   game.playfield[target.y][target.x].occupied = true;
+  game.playfield[target.y][target.x].colour = random_Colour();
 }
 
 static inline void copyTile(coord const to, coord const from) {
