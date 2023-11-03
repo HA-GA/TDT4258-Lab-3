@@ -74,23 +74,19 @@ gameConfig game = {
                    .initNextGameTick = 50,
 };
 
-int random_Colour() {
-    int colours[] = {
-        0xFF0000,  // Red
-        0x00FF00,  // Green
-        0x0000FF,  // Blue
-        0xFFFF00,  // Yellow
-        0x800080,  // Purple
-        0x00FFFF,  // Cyan
-        0xFFA500,  // Orange
-        0xFFC0CB   // Pink
+int colours[] = {
+        0xF800,  // Red
+        0x07E0,  // Green
+        0x001F,  // Blue
+        0xFFE0,  // Yellow
+        0x8010,  // Purple
+        0x07FF,  // Cyan
+        0xFDA0,  // Orange
+        0xF81F   // Pink
     };
 
-    int numberOfColours = 8;
-
-    int random = rand() % numberOfColours;
-
-    return colours[random];
+uint16_t random_Colour() {
+    return colors[rand() % 8];
 }
 
 int getCount(const char* dirPath, const char* prefix) {
@@ -274,25 +270,20 @@ int readSenseHatJoystick()
     return 0;  // Default return value if no recognized joystick event
 }
 
-void setSenseHatColors(uint32_t matrixColors[]);
-uint32_t getColorForElement(bool element);
-extern bool gameField[8][8];
-
-
 void renderSenseHatMatrix(bool const playfieldChanged) {
     if (!playfieldChanged) {
-        return; 
+        return;
     }
 
     for (int y = 0; y < 8; y++) {
         for (int x = 0; x < 8; x++) {
-            if (game.playfield[y][x].occupied){
-                    fb_ptr[x + (8 * y)] = game.playfield[y][x].colour;
-                }
-                else{
-                    fb_ptr[x + (8 * y)] = 0;
-                }
-          }
+            if (game.field[x][y].occupied){
+                fb_ptr[x + (8 * y)] = random_Colour();
+            }
+            else {
+                fb_ptr[x + (8 * y)] = 0;
+            }
+        }
     }
 }
 
